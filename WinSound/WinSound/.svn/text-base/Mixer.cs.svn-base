@@ -1,0 +1,250 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+namespace WinSound
+{
+	/// <summary>
+	/// Mixer
+	/// </summary>
+	public class Mixer
+	{
+		/// <summary>
+		/// MixBytes
+		/// </summary>
+		/// <param name="?"></param>
+		/// <param name="maxListCount"></param>
+		/// <param name="BitsPerSample"></param>
+		/// <returns></returns>
+		public static List<Byte> MixBytes(List<List<Byte>> listList, int BitsPerSample)
+		{
+			//Ergebnis
+			List<Int32> list16 = new List<Int32>();
+			int maximum = 0;
+			double average = 0;
+
+			//Fertig
+			return MixBytes_Intern(listList, BitsPerSample, out list16, out maximum, out average);
+		}
+		/// <summary>
+		/// MixBytes 
+		/// </summary>
+		/// <param name="listList"></param>
+		/// <param name="BitsPerSample"></param>
+		/// <param name="listLinear"></param>
+		/// <returns></returns>
+		public static List<Byte> MixBytes(List<List<Byte>> listList, int BitsPerSample, out List<Int32> listLinear16, out int maximum, out double average)
+		{
+			//Fertig
+			return MixBytes_Intern(listList, BitsPerSample, out listLinear16, out maximum, out average);
+		}
+		/// <summary>
+		/// MixBytes_Intern
+		/// </summary>
+		/// <param name="listList"></param>
+		/// <param name="BitsPerSample"></param>
+		/// <param name="listLinear"></param>
+		/// <returns></returns>
+		private static List<Byte> MixBytes_Intern(List<List<Byte>> listList, int BitsPerSample, out List<Int32> listLinear, out int maximum, out double average)
+		{
+
+			//Defaultwert setzen
+			listLinear = new List<Int32>();
+			maximum = 0;
+			average = 0;
+
+			//Maximale Anzahl Bytes zum Mischen ermitteln
+			int maxBytesCount = 0;
+			foreach (List<Byte> l in listList)
+			{
+				if (l.Count > maxBytesCount)
+				{
+					maxBytesCount = l.Count;
+				}
+			}
+
+			//Wenn Daten vorhanden
+			if (listList.Count > 0 && maxBytesCount > 0)
+			{
+
+				//Je nach BitsPerSample
+				switch (BitsPerSample)
+				{
+					//8
+					case 8:
+						return MixBytes_8Bit(listList, maxBytesCount, out listLinear, out maximum, out average);
+
+					//16
+					case 16:
+						return MixBytes_16Bit(listList, maxBytesCount, out listLinear, out maximum, out average);
+				}
+			}
+
+			//Fehler
+			return new List<Byte>();
+		}
+		/// <summary>
+		/// MixBytes_16Bit
+		/// </summary>
+		/// <param name="listList"></param>
+		/// <returns></returns>
+		private static List<Byte> MixBytes_16Bit(List<List<Byte>> listList, int maxBytesCount, out List<Int32> listLinear, out int maximum, out double average)
+		{
+			//Ergebnis
+			List<Byte> list = new List<byte>();
+			listLinear = new List<int>();
+			maximum = 0;
+			average = 0;
+
+			//Array mit linearen Werten erstellen (16Bit)
+			int value16Count = maxBytesCount / 2;
+			List<Int16> list16 = new List<Int16>(value16Count);
+			for (int i = 0; i < value16Count; i++)
+			{
+				list16.Add(0);
+			}
+
+			//Für jede ByteListe
+			foreach (List<Byte> listBytes in listList)
+			{
+				//In Array umwandeln
+				Byte[] bytes = listBytes.ToArray();
+
+				//Für jeden 16Bit Wert
+				for (int i = 0, a = 0; i < value16Count; i++, a += 2)
+				{
+					//Wenn Werte zum Mischen vorhanden
+					if (i < bytes.Length && a < bytes.Length - 1)
+					{
+						//Wert ermitteln
+						Int16 value16 = BitConverter.ToInt16(bytes, a);
+						int value32 = list16[i] + value16;
+
+						//Wert addieren	(Überläufe abfangen)
+						if (value32 < Int16.MinValue)
+						{
+							value32 = Int16.MinValue;
+						}
+						else if (value32 > Int16.MaxValue)
+						{
+							value32 = Int16.MaxValue;
+						}
+
+						//Wert setzen
+						list16[i] = Convert.ToInt16(value32);
+					}
+					else
+					{
+						//Stumm lassen
+					}
+				}
+			}
+
+			//Für jeden Wert
+			long sum = 0;
+			foreach (Int16 v16 in list16)
+			{
+				//Integer nach Bytes umwandeln
+				Byte[] bytes = BitConverter.GetBytes(v16);
+				list.AddRange(bytes);
+
+				//Linearen Wert hinzufügen
+				int v32 = Convert.ToInt32(v16);
+				listLinear.Add(v32);
+
+				//Maximum berechnen
+				if (v32 > maximum)
+				{
+					maximum = v32;
+				}
+
+				//Durchschnitt berechnen
+				sum += Math.Abs(v32);
+				average = sum / listLinear.Count;
+			}
+
+			//Fertig
+			return list;
+		}
+		/// <summary>
+		/// MixBytes_8Bit
+		/// </summary>
+		/// <param name="listList"></param>
+		/// <param name="maxBytesCount"></param>
+		/// <returns></returns>
+		private static List<Byte> MixBytes_8Bit(List<List<Byte>> listList, int maxBytesCount, out List<Int32> listLinear, out int maximum, out double average)
+		{
+			//Out Ergebnis 
+			listLinear = new List<int>();
+			maximum = 0;
+			average = 0;
+
+			//Array mit linearen Werten erstellen (Ergebnis)
+			int value8Count = maxBytesCount;
+			List<Byte> list = new List<Byte>(value8Count);
+			for (int i = 0; i < value8Count; i++)
+			{
+				list.Add(0);
+			}
+
+			//Für jede ByteListe
+			foreach (List<Byte> listBytes in listList)
+			{
+				//In Array umwandeln
+				Byte[] bytes = listBytes.ToArray();
+
+				//Für jeden 8 Bit Wert
+				long sum = 0;
+				for (int i = 0; i < value8Count; i++)
+				{
+					//Wenn Werte zum Mischen vorhanden
+					if (i < bytes.Length)
+					{
+						//Wert ermitteln
+						Byte value8 = bytes[i];
+						int value32 = list[i] + value8;
+
+						//Wert addieren	(Überläufe abfangen)
+						if (value32 < Byte.MinValue)
+						{
+							value32 = Byte.MinValue;
+						}
+						else if (value32 > Byte.MaxValue)
+						{
+							value32 = Byte.MaxValue;
+						}
+
+						//Wert setzen
+						Byte b = BitConverter.GetBytes(value32)[0];
+						list[i] = b;
+
+						//Hinzufügen
+						int v32 = Convert.ToInt32(b);
+						listLinear.Add(v32);
+
+						//Maximum berechnen
+						if (v32 > maximum)
+						{
+							maximum = v32;
+						}
+
+						//Durchschnitt berechnen
+						sum += Math.Abs(v32);
+						average = sum / listLinear.Count;
+					}
+					else
+					{
+						//Stumm lassen
+						listLinear.Add(0);
+						//Durchschnitt berechnen
+						average = sum / listLinear.Count;
+					}
+				}
+			}
+
+			//Fertig
+			return list;
+		}
+	}
+}
